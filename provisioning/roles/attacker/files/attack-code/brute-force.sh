@@ -10,5 +10,5 @@ while true; do
   sec=$(($duration % 60))
   echo "$min minutes and $sec seconds elapsed."
   echo "The program has been running $value times so far."
-  cat badfile | nc 10.9.0.5 9090
+  cat badfile | nc 10.1.26.9 9092
 done

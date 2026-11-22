@@ -6,11 +6,7 @@ int main(int argc, char **argv)
 {
     char code[500];
     FILE *fd;
-#if __x86_64__
-    const char *filename = "codefile_64";
-#else 
     const char *filename = "codefile_32";
-#endif
 
     fd = fopen(filename, "r");
     if (!fd){

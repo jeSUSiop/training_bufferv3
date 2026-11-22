@@ -1,22 +1,35 @@
 ---
 # Server role
-# Builds and runs the SEED "Buffer Overflow Attack Lab (Server Version)" as two
-# Docker containers (Level 1 on :9090, Level 2 on :9091), with ASLR disabled and
-# a unique-per-sandbox root flag planted inside each vulnerable container.
+# Builds and runs the SEED "Buffer Overflow Attack Lab (Server Version)" as three
+# Docker containers, with a unique-per-sandbox root flag planted inside each:
+#   - Level 1  (Task 2)  on :9090  - ASLR off (fixed addresses)
+#   - Level 2  (Task 3)  on :9091  - ASLR off (fixed addresses)
+#   - Level 3  (Task 4)  on :9092  - ASLR ON  (brute-force target)
+#
+# kernel.randomize_va_space is HOST-global (not per-container), so it is set to
+# full randomization here; the Level 1/2 services are launched under `setarch -R`
+# in docker-compose.yml to disable ASLR for themselves, while Level 3 runs with it
+# on. That is what lets Task 4 live in its own container with ASLR enabled.
 
 # ---------------------------------------------------------------------------
-# 1. Countermeasures off (baseline). Students re-enable ASLR themselves in Task 6.
+# 1. Host ASLR = full. Level 1/2 opt out per-process via `setarch -R`
+#    (see docker-compose.yml); Level 3 keeps it on as the Task 4 target.
 # ---------------------------------------------------------------------------
-- name: Persist ASLR-off across reboots
+- name: Persist ASLR=full across reboots
   copy:
-    dest: /etc/sysctl.d/99-disable-aslr.conf
-    content: "kernel.randomize_va_space = 0\n"
+    dest: /etc/sysctl.d/99-aslr.conf
+    content: "kernel.randomize_va_space = 2\n"
     owner: root
     group: root
     mode: '0644'
 
-- name: Disable ASLR now (baseline for the buffer-overflow attacks)
-  command: sysctl -w kernel.randomize_va_space=0
+- name: Remove the old ASLR-off drop-in (superseded)
+  file:
+    path: /etc/sysctl.d/99-disable-aslr.conf
+    state: absent
+
+- name: Enable full ASLR now (Level 3 / Task 4 target; Level 1-2 opt out via setarch)
+  command: sysctl -w kernel.randomize_va_space=2
 
 # ---------------------------------------------------------------------------
 # 2. Tooling: 32-bit build support + docker
@@ -82,6 +95,7 @@
   set_fact:
     flag_level1: "FLAG-L1-{{ lookup('password', '/dev/null chars=hexdigits length=16') }}"
     flag_level2: "FLAG-L2-{{ lookup('password', '/dev/null chars=hexdigits length=16') }}"
+    flag_level3: "FLAG-L3-{{ lookup('password', '/dev/null chars=hexdigits length=16') }}"
 
 - name: Plant the Level 1 flag inside its container (root only)
   command: >
@@ -93,6 +107,11 @@
     docker exec server-2-10.9.0.6
     bash -c "echo {{ flag_level2 }} > /root/flag && chmod 600 /root/flag && chown root:root /root/flag"
 
+- name: Plant the Level 3 flag inside its container (root only)
+  command: >
+    docker exec server-3-10.9.0.7
+    bash -c "echo {{ flag_level3 }} > /root/flag && chmod 600 /root/flag && chown root:root /root/flag"
+
 # The generated flags are recorded so the training definition can validate each
 # student's submission against their own sandbox values (variant answers).
 - name: Record the generated flags for the training definition
@@ -101,6 +120,7 @@
     content: |
       flag_level1: "{{ flag_level1 }}"
       flag_level2: "{{ flag_level2 }}"
+      flag_level3: "{{ flag_level3 }}"
     owner: root
     group: root
     mode: '0600'

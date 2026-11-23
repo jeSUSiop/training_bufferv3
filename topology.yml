@@ -18,28 +18,29 @@ routers:
     base_box:
       image: debian-12-x86_64
       mgmt_user: debian
-    flavor: standard.small
+    flavor: m1.small
 
 wan:
   name: internet-connection
   cidr: 100.100.100.0/24
 
 networks:
-  - name: lab-switch
+  - name: seed-switch
     cidr: 10.1.26.0/24
+    accessible_by_user: True
 
 net_mappings:
   - host: attacker
-    network: lab-switch
+    network: seed-switch
     ip: 10.1.26.23
 
   - host: server
-    network: lab-switch
+    network: seed-switch
     ip: 10.1.26.9
 
 router_mappings:
   - router: router
-    network: lab-switch
+    network: seed-switch
     ip: 10.1.26.1
 
 groups: []

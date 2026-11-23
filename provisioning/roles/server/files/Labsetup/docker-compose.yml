@@ -17,6 +17,10 @@ services:
         tty: true
         # ASLR OFF for this level (fixed addresses) via setarch -R.
         command: ["setarch", "-R", "./server"]
+        # setarch -R calls personality(ADDR_NO_RANDOMIZE), which Docker's default
+        # seccomp profile blocks (EPERM -> container exits at once). Lift it.
+        security_opt:
+            - seccomp:unconfined
         # Publish the container's port 9090 on the host's port 9090 so the
         # remote attacker VM can reach Level 1 at <server-ip>:9090
         ports:
@@ -35,6 +39,9 @@ services:
         tty: true
         # ASLR OFF for this level (fixed addresses) via setarch -R.
         command: ["setarch", "-R", "./server"]
+        # Needed for setarch -R (see bof-server-L1).
+        security_opt:
+            - seccomp:unconfined
         # Level 2 is reachable from the attacker VM at <server-ip>:9091
         ports:
             - "9091:9090"

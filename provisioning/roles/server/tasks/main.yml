@@ -86,6 +86,23 @@
   args:
     chdir: /home/seed/Labsetup
 
+# `docker-compose up -d` succeeds even if a container dies right after start,
+# so check they are really running (and show the logs if not) before planting flags.
+- name: Check that the vulnerable containers are running
+  shell: |
+    for c in server-1-10.9.0.5 server-2-10.9.0.6 server-3-10.9.0.7; do
+      if [ "$(docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' "$c" 2>/dev/null)" != "true" ]; then
+        echo "== $c is NOT running. Last logs:"
+        docker logs --tail 20 "$c" 2>&1
+        exit 1
+      fi
+    done
+  register: bof_containers
+  retries: 5
+  delay: 3
+  until: bof_containers.rc == 0
+  changed_when: false
+
 # ---------------------------------------------------------------------------
 # 5. Unique-per-sandbox flags (anti-cheat)
 #    Each flag is random for this sandbox, planted root-only inside its

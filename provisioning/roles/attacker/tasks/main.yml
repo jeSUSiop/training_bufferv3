@@ -43,10 +43,9 @@
 #     `user`); it is only reachable via the Set-UID runner executing their
 #     shellcode. This closes the "just type the command" bypass.
 # ---------------------------------------------------------------------------
-- name: Generate a unique Task 1 flag for this sandbox
-  set_fact:
-    flag_task1: "FLAG-T1-{{ lookup('password', '/dev/null chars=hexdigits length=16') }}"
-
+# flag_task1 is an APG variable (see variables.yml): the platform generates a
+# unique value per sandbox, injects it here, and checks the student's answer
+# against it. Plant that exact value; do NOT generate one here.
 - name: Plant the Task 1 flag in a root-only file
   copy:
     dest: /opt/flag
@@ -66,12 +65,3 @@
     owner: root
     group: root
     mode: '4755'
-
-- name: Record the Task 1 flag for the training definition
-  copy:
-    dest: /root/training-answers.yml
-    content: |
-      flag_task1: "{{ flag_task1 }}"
-    owner: root
-    group: root
-    mode: '0600'

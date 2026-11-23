@@ -177,5 +177,5 @@
     }
   ],
   "estimated_duration": 65,
-  "variant_sandboxes": false
+  "variant_sandboxes": true
 }

@@ -1,0 +1,33 @@
+# APG variables for per-sandbox variant answers.
+#
+# CyberRangeCZ's Automatic Problem Generator (APG) creates a unique value for
+# each of these in every sandbox (i.e. per student) and injects it into the
+# Ansible provisioning as a plain variable of the same name (referenced as
+# `{{ flag_level1 }}` etc. in the roles). The training definition
+# (training.json) ties each level's answer to one of these via
+# `answer_variable_name`, so the platform checks every student's submission
+# against their own sandbox's generated value.
+#
+# Requirements for this to work:
+#   - training.json must set "variant_sandboxes": true (and per-level
+#     "variant_answers": true, which it already has).
+#   - When creating the pool / training instance, enable "Generate variant
+#     sandboxes".
+#
+# Docs: https://docs.platform.cyberrange.cz/user-guide-advanced/sandboxes/apg-variables/
+
+flag_task1:
+  type: password
+  length: 16
+
+flag_level1:
+  type: password
+  length: 16
+
+flag_level2:
+  type: password
+  length: 16
+
+flag_level3:
+  type: password
+  length: 16

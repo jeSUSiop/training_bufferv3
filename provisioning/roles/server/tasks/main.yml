@@ -105,15 +105,13 @@
 
 # ---------------------------------------------------------------------------
 # 5. Unique-per-sandbox flags (anti-cheat)
-#    Each flag is random for this sandbox, planted root-only inside its
-#    container, so a student can only read it after getting a root shell.
+#    flag_level1/2/3 are APG variables declared in variables.yml. The platform
+#    generates a unique value per sandbox and injects it here as an Ansible
+#    variable, and checks each student's submission against it (variant
+#    answers). We plant that exact value root-only inside each container, so a
+#    student can only read it after getting a root shell. Do NOT generate these
+#    values here: they must match what the platform expects.
 # ---------------------------------------------------------------------------
-- name: Generate a unique flag per level for this sandbox
-  set_fact:
-    flag_level1: "FLAG-L1-{{ lookup('password', '/dev/null chars=hexdigits length=16') }}"
-    flag_level2: "FLAG-L2-{{ lookup('password', '/dev/null chars=hexdigits length=16') }}"
-    flag_level3: "FLAG-L3-{{ lookup('password', '/dev/null chars=hexdigits length=16') }}"
-
 - name: Plant the Level 1 flag inside its container (root only)
   command: >
     docker exec server-1-10.9.0.5
@@ -128,16 +126,3 @@
   command: >
     docker exec server-3-10.9.0.7
     bash -c "echo {{ flag_level3 }} > /root/flag && chmod 600 /root/flag && chown root:root /root/flag"
-
-# The generated flags are recorded so the training definition can validate each
-# student's submission against their own sandbox values (variant answers).
-- name: Record the generated flags for the training definition
-  copy:
-    dest: /root/training-answers.yml
-    content: |
-      flag_level1: "{{ flag_level1 }}"
-      flag_level2: "{{ flag_level2 }}"
-      flag_level3: "{{ flag_level3 }}"
-    owner: root
-    group: root
-    mode: '0600'

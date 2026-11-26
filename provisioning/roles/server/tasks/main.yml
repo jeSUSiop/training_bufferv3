@@ -126,3 +126,44 @@
   command: >
     docker exec server-3-10.9.0.7
     bash -c "echo {{ flag_level3 }} > /root/flag && chmod 600 /root/flag && chown root:root /root/flag"
+
+# ---------------------------------------------------------------------------
+# 6. Lock down the server VM so a student cannot read the flags via the host.
+#    The SEED image ships a `seed` user with sudo, and this VM runs the flag
+#    containers. If a student opened a shell/GUI on this box they could
+#    `sudo docker exec ... cat /root/flag` and skip the exploit entirely.
+#    We strip the seed user's root paths (sudo + docker group). The platform
+#    provisions this VM as `ubuntu` (mgmt_user), NOT as seed, so this does not
+#    affect management/provisioning.
+# ---------------------------------------------------------------------------
+- name: Revoke the seed user's sudo group membership
+  ansible.builtin.command: gpasswd -d seed sudo
+  register: _seed_sudo
+  changed_when: _seed_sudo.rc == 0
+  failed_when:
+    - _seed_sudo.rc != 0
+    - "'is not a member' not in _seed_sudo.stderr"
+
+- name: Revoke the seed user's admin group membership (older images)
+  ansible.builtin.command: gpasswd -d seed admin
+  register: _seed_admin
+  changed_when: _seed_admin.rc == 0
+  failed_when: false
+
+- name: Revoke the seed user's docker group membership (docker socket == root)
+  ansible.builtin.command: gpasswd -d seed docker
+  register: _seed_docker
+  changed_when: _seed_docker.rc == 0
+  failed_when: false
+
+- name: Remove any sudoers drop-in that grants the seed user
+  ansible.builtin.file:
+    path: /etc/sudoers.d/seed
+    state: absent
+
+- name: Strip any inline seed grant from /etc/sudoers
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    regexp: '^\s*seed\s'
+    state: absent
+    validate: 'visudo -cf %s'

